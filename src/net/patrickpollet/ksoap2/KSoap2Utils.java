@@ -22,6 +22,8 @@
 
 package net.patrickpollet.ksoap2;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -382,4 +384,28 @@ public class KSoap2Utils {
 		return ret.replace("[]", "");
 	}
 
+	public static java.util.Calendar getCalendar(SoapObject response, String id) {
+		if (response.getProperty(id) != null)  //watch for nilleable date !!!!
+		{
+			SimpleDateFormat sd = new SimpleDateFormat();
+			java.util.Date d;
+			try {
+				d = sd.parse(response.getProperty(id).toString());
+				java.util.Calendar c =  java.util.Calendar.getInstance();
+				
+				c.setTime(d);
+				return c;
+			} catch (ParseException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				return null;
+			}
+		
+			
+			
+			
+		}
+		else
+			return null;
+	}
 }

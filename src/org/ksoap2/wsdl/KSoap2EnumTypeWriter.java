@@ -204,7 +204,7 @@ public class KSoap2EnumTypeWriter extends JavaEnumTypeWriter {
 
         // A protected constructor is used to create the static enumeration values
         pw.println("    // " + Messages.getMessage("ctor00"));
-        pw.println("    protected " + javaName + "(" + baseType + " value) {");
+        pw.println("    public " + javaName + "(" + baseType + " value) {");
         pw.println("        _value_ = value;");
 
         if (baseClass.equals("java.lang.String")

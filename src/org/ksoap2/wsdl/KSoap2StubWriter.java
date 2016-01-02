@@ -18,12 +18,18 @@ package org.ksoap2.wsdl;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 
 import javax.wsdl.Binding;
 import javax.wsdl.BindingOperation;
 import javax.wsdl.Operation;
 import javax.wsdl.OperationType;
+import javax.wsdl.extensions.soap.SOAPOperation;
+import javax.xml.namespace.QName;
 
 import net.patrickpollet.ksoap2.KSoap2Utils;
 
@@ -33,6 +39,7 @@ import org.apache.axis.wsdl.symbolTable.Parameters;
 import org.apache.axis.wsdl.symbolTable.SymbolTable;
 import org.apache.axis.wsdl.toJava.Emitter;
 import org.apache.axis.wsdl.toJava.JavaStubWriter;
+import org.apache.axis.wsdl.toJava.Utils;
 
 public class KSoap2StubWriter extends JavaStubWriter {
 
@@ -128,12 +135,13 @@ public class KSoap2StubWriter extends JavaStubWriter {
 					.getOperation());
 
 			// Get the soapAction from the <soap:operation>
-			String soapAction = "";
+			String soapAction = Utils.getOperationSOAPAction(operation);
 			String opStyle = null;
 			
 			Operation ptOperation = operation.getOperation();
 			OperationType type = ptOperation.getStyle();
-
+			
+			
 			// These operation types are not supported. The signature
 			// will be a string stating that fact.
 			if ((OperationType.NOTIFICATION.equals(type))
@@ -175,7 +183,7 @@ public class KSoap2StubWriter extends JavaStubWriter {
 		
 		
 		String operationName=operation.getName();
-       System.out.println(operation.getName());
+		System.out.println(operation.getName());
 /*
 		if (operation.getName().equals("login")
 				|| operation.getName().equals("logout")
@@ -197,8 +205,8 @@ public class KSoap2StubWriter extends JavaStubWriter {
 		String signature= parms.signature.replace("throws java.rmi.RemoteException", "");
 		pw.println(signature + " {");
 		
-		
 		pw.println("    final String METH_NAME = \""+operationName+"\";");
+		pw.println("    final String SOAP_ACTION = \""+soapAction+"\";");
 		
 		//pw.println("    LoginReturn lr=new LoginReturn(client,sesskey);");
 		pw.println("	MySoapSerializationEnvelope envelope = this.makeEnvelope(METH_NAME);");
@@ -210,7 +218,7 @@ public class KSoap2StubWriter extends JavaStubWriter {
 		
 
        pw.println("     try {");
-	   pw.println("       httpTransport.call(METH_NAME, envelope);");
+	   pw.println("       httpTransport.call(SOAP_ACTION, envelope);");
 	   
 	   pw.println("     "+this.generateFetchValue(operation, parms));
 
@@ -237,23 +245,40 @@ public class KSoap2StubWriter extends JavaStubWriter {
 			Parameter p = (Parameter) parms.list.get(i);
 			//System.out.println(p);
 			if (p.getMode() == Parameter.IN) {
-				String javifiedName = p.getName(); //Utils.xmlNameToJava(p.getName());
+				String name = p.getName();
+				String tmpName = p.getName();
+				 if (!((tmpName == null) || tmpName.equals("")) && !tmpName.equals("ID")) {
+			            
+
+			        char start = tmpName.charAt(0);
+
+			        if (Character.isUpperCase(start)) {
+			            start = Character.toLowerCase(start);
+
+			            tmpName = start + tmpName.substring(1);
+			        }
+				 }
+				
+				 String qNameLastLocalPart = Utils.getLastLocalPart(p.getQName().getLocalPart());
+				 
+				
+				String javifiedName = tmpName  ; //Utils.xmlNameToJava(p.getName());
 				String typeName=p.getType().getName();
 				System.out.println (javifiedName+":"+typeName);
 				if (KSoap2Utils.isPrimitiveType(typeName)|| KSoap2Utils.isStringType(typeName))
-					pw.println("      envelope.addProperty(\""+javifiedName+"\","+javifiedName+");");	
+					pw.println("      envelope.addProperty(\""+qNameLastLocalPart+"\","+javifiedName+");");	
 				else if (KSoap2Utils.isArrayType(typeName)) {
 					String baseType=KSoap2Utils.getBaseType(typeName);
 					pw.println("     //generate an arraytype SoapObject for input array ");
-					pw.printf("      SoapObject _%s= new SoapObject(this.NAMESPACE,\"%sArray\");\n",javifiedName,baseType);
+					pw.printf("      SoapObject _%s= new SoapObject(this.NAMESPACE,\"%sArray\");\n",javifiedName,typeName);
 					pw.printf( "     if (%s !=null)      \n" ,javifiedName);  // rev 1.8.4 some arrays of ids may be empty=null in java
 					pw.printf("         for ( Object o : %s) \n",javifiedName);
 					pw.printf("            _%s.addProperty(\"item\",o);\n",javifiedName);
-					pw.println("     envelope.addProperty(\""+javifiedName+"\",_"+javifiedName+");");
+					pw.println("     envelope.addProperty(\""+qNameLastLocalPart+"\",_"+javifiedName+");");
 				}
 				
 				else {
-					pw.println("      envelope.addProperty(\""+javifiedName+"\","+javifiedName+");");// sending an object is not yet implemented
+					pw.println("      envelope.addProperty(\""+qNameLastLocalPart+"\","+javifiedName+");");// sending an object is not yet implemented
 				}
 			}
 		}
@@ -305,10 +330,11 @@ public class KSoap2StubWriter extends JavaStubWriter {
 					}	
 
 					else {
-
+						
+						String tName = typeName.replace("[]","");
 						return 
-						"List ret=this.getList(response,new "+baseType+"(this.NAMESPACE));\n"+
-						"      return ("+baseType+"[]) ret.toArray( new "+baseType+"[0]);";
+						"List ret=this.getList(response,new "+tName+"(this.NAMESPACE));\n"+
+						"      return ("+tName+"[]) ret.toArray( new "+tName+"[0]);";
 					}
 				}
 			}
@@ -324,7 +350,7 @@ public class KSoap2StubWriter extends JavaStubWriter {
 				//return (ExamenRecordV2)KSoap2Utils.getObject(response, new ExamenRecordV2());
 				String baseType=KSoap2Utils.getBaseType(typeName);
 				if (fault) return "return null;";
-				else	return "return ("+ baseType+")KSoap2Utils.getObject(response,new "+baseType+"(this.NAMESPACE));";
+				else	return "return ("+ typeName+")KSoap2Utils.getObject(response,new "+typeName+"(this.NAMESPACE));";
 			}
 		}
 		return "// a WS method that's returns nothing. Why not ?";

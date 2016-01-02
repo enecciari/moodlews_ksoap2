@@ -24,6 +24,7 @@ import java.util.Vector;
 import net.patrickpollet.ksoap2.KSoap2Utils;
 import net.patrickpollet.moodlewsold.core.ForumPostRecord;
 
+import org.apache.axis.utils.JavaUtils;
 import org.apache.axis.wsdl.symbolTable.TypeEntry;
 import org.apache.axis.wsdl.toJava.Emitter;
 import org.apache.axis.wsdl.toJava.JavaBeanWriter;
@@ -34,6 +35,7 @@ import org.w3c.dom.DOMException;
 
 public class KSoap2BeanWriter extends JavaBeanWriter{
 	
+	private Boolean writeDeserializer = true;
 	//private TypeEntry type; // needed here but private in superclass
 	private String nameSpaceURI="";
 	   /**
@@ -85,7 +87,9 @@ public class KSoap2BeanWriter extends JavaBeanWriter{
      * @return " implements <classes> "
      */
     protected String getImplementsText() {
+    	
     	return " implements Soapeabilisable";
+    	
     }
     
     /**
@@ -179,6 +183,13 @@ public class KSoap2BeanWriter extends JavaBeanWriter{
         pw.println ("        super(nameSpace,"+"\""+this.className+"\");");
         pw.println("    }");
         pw.println();
+        
+    	try {
+			this.writeDeserializer(pw);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
     }
     
     
@@ -191,28 +202,44 @@ public class KSoap2BeanWriter extends JavaBeanWriter{
      */
     protected void writeDeserializer (PrintWriter pw) throws IOException {
     	
-  	  pw.println("    /**");
+    	if( !this.writeDeserializer)
+    		return;
+    	this.writeDeserializer = false;
+    	
+  	 	pw.println("    /**");
         pw.println("     * Get Custom Deserializer");
         pw.println("     */");
         pw.println(
                    "    public Soapeabilisable fromSoapResponse (SoapObject response) {");
-       pw.println("      "+className+ " ret = new "+ className+"(this.namespace);");
+        pw.println("      "+className+ " ret = new "+ className+"(this.namespace);");
         
 
        for (int i = 0; i < names.size(); i += 2) {
     	   String typeName = (String) names.get(i);
     	   String name = (String) names.get(i + 1);
     	   String capName = Utils.capitalizeFirstChar(name);
+    	  	  
+    	   String qName = ((KSoap2BeanHelperWriter)helper).getQNameLocalPart(name);
+    	   
     	  // System.out.println("====>"+typeName+" "+name+" "+capName);
     	   String get=""; 
+    	   if ( typeName.equals("java.math.BigDecimal") || 
+    			   typeName.equals("java.lang.Boolean") ||
+    			   typeName.equals("org.apache.axis.types.Id") ||
+    			   typeName.equals("org.apache.axis.types.IDRef")
+    			   )
+    	   {
+    		   pw.println("      ret.set"+capName+"((new "+typeName+"(response.getPropertyAsString(\""+qName+"\"))));");
+    	   }
+    	   else
     	   if (KSoap2Utils.isPrimitiveType(typeName)) {
     		   // emit something like  ret.setDate(KSoap2Utils.getLong(response,"date") );
-    		   get="get"+ Utils.capitalizeFirstChar(typeName)+ "(response,"+"\""+name +"\")";
+    		   get="get"+ Utils.capitalizeFirstChar(typeName)+ "(response,"+"\""+qName +"\")";
     		   pw.println("      ret.set"+capName+"(KSoap2Utils."+get+" );");
     	   }
     	   else if (KSoap2Utils.isStringType(typeName)) {
     		   // emit something like  ret.setCategory(KSoap2Utils.getString(response,"category") ); 
-    		   get="getString(response,"+"\""+name +"\")";
+    		   get="getString(response,"+"\""+qName +"\")";
     		   pw.println("      ret.set"+capName+"(KSoap2Utils."+get+" );");
     	   }	
     	   
@@ -220,10 +247,11 @@ public class KSoap2BeanWriter extends JavaBeanWriter{
     		   // in some WSDL xsd:int is associated with minoccurs,maxoccurs, thus forcing Axis to convert it the Integer or BigInteger 
     		   pw.printf ("   // wrapper %s\n",typeName);
     		   //emit   ret.setTimeout((Integer) response.getProperty("timeout"));
-    		   pw.printf("       ret.set%s((%s) response.getProperty(\"%s\"));\n",capName,typeName,name );
+    		 
+    		   pw.printf("       ret.set%s((%s) response.getProperty(\"%s\"));\n",capName,typeName,qName );
     	   }
     	   
-    	   
+    	  
     	   else if (KSoap2Utils.isArrayType(typeName)) {
     		   
     		   String baseType=KSoap2Utils.getBaseType(typeName);
@@ -234,7 +262,8 @@ public class KSoap2BeanWriter extends JavaBeanWriter{
     			   //int[] _mainActions =KSoap2Utils.getIntegerArray((SoapObject) response.getProperty("mainActions"));
     			   //ret.setMainActions(_mainActions);
     			   String wrapperClass=KSoap2Utils.getWrapperClassName(baseType);
-    			   pw.printf("       %s[] _%s =KSoap2Utils.get%sArray((SoapObject) response.getProperty(\"%s\"));\n",baseType,name,wrapperClass,name);
+    			   pw.printf("       %s[] _%s =KSoap2Utils.get%sArray((SoapObject) response.getProperty(\"%s\"));\n",
+    					   baseType,name,wrapperClass,qName);
     			   pw.printf("       ret.set%s(_%s);\n",capName,name);
     			   
     		   }
@@ -242,7 +271,8 @@ public class KSoap2BeanWriter extends JavaBeanWriter{
     			   //emit something like
     			   //String[] _mainActions =KSoap2Utils.getStringArray((SoapObject) response.getProperty("mainActions"));
     			   //ret.setMainActions(_mainActions);
-    			   pw.printf("       String[] _%s =KSoap2Utils.getStringArray((SoapObject) response.getProperty(\"%s\"));\n",name,name);
+    			   pw.printf("       String[] _%s =KSoap2Utils.getStringArray((SoapObject) response.getProperty(\"%s\"));\n",
+    					   name,qName);
     			   pw.printf("       ret.set%s(_%s);\n",capName,name);
     		   }
     		   /*****
@@ -258,8 +288,14 @@ public class KSoap2BeanWriter extends JavaBeanWriter{
             	   List _profile =KSoap2Utils.getList((SoapObject) response.getProperty("profile"),new ProfileitemRecord(this.namespace));
             	   ret.setProfile((ProfileitemRecord[]) _profile.toArray(new ProfileitemRecord[0]));
     			    */
-    			   pw.printf("      List _%s =KSoap2Utils.getList((SoapObject) response.getProperty(\"%s\"),new %s(this.namespace));\n",name,name,baseType);
-    			   pw.printf("      ret.set%s((%s[]) _%s.toArray(new %s[0]));\n",capName,baseType,name,baseType);
+    			   /// TODO: verificare Nome Metodi
+    			   
+    			   String tname = typeName.replace("[]","");
+    			   
+    			   
+    			   pw.printf("      List _%s =KSoap2Utils.getList((SoapObject) response.getProperty(\"%s\"),"
+    			   		+ "new %s(this.namespace));\n",name,qName,tname);
+    			   pw.printf("      ret.set%s((%s[]) _%s.toArray(new %s[0]));\n",capName,tname,name,tname);
     		   }
     		   //get="getObject(response,new"+;
     	   }
@@ -272,7 +308,18 @@ public class KSoap2BeanWriter extends JavaBeanWriter{
 				
 			}
     	    ****/
-
+    	  
+    	   else if ( typeName.equals("java.lang.Object"))
+    	   {
+    		   pw.println("      ret.set"+capName+"(response.getProperty(\""+qName+"\"));");
+    	   }
+    	   else if ( typeName.equals("java.util.Calendar"))
+    	   {
+    		   
+    		   get="getCalendar(response,"+"\""+qName +"\")";
+    		   pw.println("      ret.set"+capName+"(KSoap2Utils."+get+" );");
+    		   
+    	   }
     	   else {  // case of returned single object of some complextype must be Soapeabilisable 
     		   // TODO use getObject 
     		   //pw.printf("    // déserialisation of %s not yet implemented \n",typeName);
@@ -281,7 +328,13 @@ public class KSoap2BeanWriter extends JavaBeanWriter{
     		   //should emit something like
     		   //ForumPostRecord _post= (ForumPostRecord) (KSoap2Utils.getObject((SoapObject) response.getProperty("post"), new ForumPostRecord(this.namespace)));
     		   //ret.setPost(_post);
-    		   pw.printf("       %s _%s= (%s) (KSoap2Utils.getObject((SoapObject) response.getProperty(\"%s\"), new %s(this.namespace)));\n", typeName,name,typeName,name,typeName);
+    		   /// TODO: Gestire Calendar
+    		   
+    		   
+    		   
+    		   pw.printf("       %s _%s= (%s) (KSoap2Utils.getObject((SoapObject) response.getProperty(\"%s\"), \n"
+    		   		+ "new %s(this.namespace)));\n", 
+    				   typeName,name,typeName,qName,typeName);
     		   pw.printf("       ret.set%s(_%s);\n",capName,name);
     		   
     		   //continue ; 
@@ -446,5 +499,5 @@ public class KSoap2BeanWriter extends JavaBeanWriter{
         }
     }
     
-
+    
 }

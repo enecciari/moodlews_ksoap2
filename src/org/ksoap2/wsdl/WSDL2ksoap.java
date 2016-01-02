@@ -38,7 +38,6 @@ public class WSDL2ksoap extends org.apache.axis.wsdl.WSDL2Java {
       return p;
     }    // createParser
 
- 
     /**
      * Main
      * Run the tool with the specified command-line arguments
