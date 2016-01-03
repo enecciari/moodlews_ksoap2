@@ -270,10 +270,10 @@ public class KSoap2StubWriter extends JavaStubWriter {
 				else if (KSoap2Utils.isArrayType(typeName)) {
 					String baseType=KSoap2Utils.getBaseType(typeName);
 					pw.println("     //generate an arraytype SoapObject for input array ");
-					pw.printf("      SoapObject _%s= new SoapObject(this.NAMESPACE,\"%sArray\");\n",javifiedName,typeName);
+					pw.printf("      SoapObject _%s= new SoapObject(this.NAMESPACE,\"%sArray\");\n",javifiedName,javifiedName);
 					pw.printf( "     if (%s !=null)      \n" ,javifiedName);  // rev 1.8.4 some arrays of ids may be empty=null in java
 					pw.printf("         for ( Object o : %s) \n",javifiedName);
-					pw.printf("            _%s.addProperty(\"item\",o);\n",javifiedName);
+					pw.printf("            _%s.addProperty(\"%s\",o);\n",javifiedName,baseType);
 					pw.println("     envelope.addProperty(\""+qNameLastLocalPart+"\",_"+javifiedName+");");
 				}
 				
