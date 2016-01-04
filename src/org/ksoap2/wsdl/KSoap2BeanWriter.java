@@ -223,13 +223,15 @@ public class KSoap2BeanWriter extends JavaBeanWriter{
     	   
     	  // System.out.println("====>"+typeName+" "+name+" "+capName);
     	   String get=""; 
-    	   if ( typeName.equals("java.math.BigDecimal") || 
+    	   if ( KSoap2Utils.isWrapperType(typeName) ||
+    			   typeName.equals("java.math.BigDecimal") || 
     			   typeName.equals("java.lang.Boolean") ||
     			   typeName.equals("org.apache.axis.types.Id") ||
     			   typeName.equals("org.apache.axis.types.IDRef")
     			   )
     	   {
-    		   pw.println("      ret.set"+capName+"((new "+typeName+"(response.getPropertyAsString(\""+qName+"\"))));");
+    		   pw.printf("// new wrapper %s\n",typeName);
+    		   pw.println("      ret.set"+capName+"((new "+typeName+"(response.getPropertySafelyAsString(\""+qName+"\"))));");
     	   }
     	   else
     	   if (KSoap2Utils.isPrimitiveType(typeName)) {

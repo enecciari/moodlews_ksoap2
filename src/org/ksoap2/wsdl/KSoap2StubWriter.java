@@ -273,7 +273,7 @@ public class KSoap2StubWriter extends JavaStubWriter {
 					pw.printf("      SoapObject _%s= new SoapObject(this.NAMESPACE,\"%sArray\");\n",javifiedName,javifiedName);
 					pw.printf( "     if (%s !=null)      \n" ,javifiedName);  // rev 1.8.4 some arrays of ids may be empty=null in java
 					pw.printf("         for ( Object o : %s) \n",javifiedName);
-					pw.printf("            _%s.addProperty(\"%s\",o);\n",javifiedName,baseType);
+					pw.printf("            _%s.addProperty(\"http://schemas.microsoft.com/2003/10/Serialization/Arrays\",\"%s\",o);\n",javifiedName,baseType.toLowerCase());
 					pw.println("     envelope.addProperty(\""+qNameLastLocalPart+"\",_"+javifiedName+");");
 				}
 				
@@ -281,7 +281,7 @@ public class KSoap2StubWriter extends JavaStubWriter {
 					pw.println("      envelope.addProperty(\""+qNameLastLocalPart+"\","+javifiedName+");");// sending an object is not yet implemented
 				}
 			}
-		}
+		} 
 
 	}
 
